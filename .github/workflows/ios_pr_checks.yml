@@ -31,27 +31,6 @@ on:
         description: "Skip release build"
         default: false
         type: boolean
-      skip-asana:
-        description: "Skip Asana task creation on tests failure"
-        type: boolean
-        default: true
-    secrets:
-      APPLE_API_KEY_BASE64:
-        required: true
-      APPLE_API_KEY_ID:
-        required: true
-      APPLE_API_KEY_ISSUER:
-        required: true
-      ASANA_ACCESS_TOKEN:
-        required: true
-      APPLE_GH_RO_PAT:
-        required: true
-      MATCH_PASSWORD:
-        required: true
-      SSH_PRIVATE_KEY_FASTLANE_MATCH:
-        required: true
-      SSH_PRIVATE_KEY_DUCKSANS_FONT:
-        required: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -104,16 +83,13 @@ jobs:
       RUNS_ON: macos-26 # keep this in sync with runs-on above
       WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
 
-    outputs:
-      commit_author: ${{ steps.fetch_commit_author.outputs.commit_author }}
-      pr_reviewers: ${{ steps.fetch_commit_author.outputs.pr_reviewers }}
-
     steps:
 
-    - name: Register SSH keys for private repos
-      uses: webfactory/ssh-agent@v0.9.1
-      with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY_DUCKSANS_FONT }}
+    # Skip SSH key registration for fork builds
+    # - name: Register SSH keys for private repos
+    #   uses: webfactory/ssh-agent@v0.9.1
+    #   with:
+    #     ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY_DUCKSANS_FONT }}
 
     - name: Check out the code
       if: github.event_name == 'pull_request' || github.event_name == 'push'
@@ -257,18 +233,6 @@ jobs:
         check_retries: ${{ needs.should-run-checks.outputs.strict_mode != 'true' }}
         job_summary: 'false'
 
-    - name: Update Asana with failed unit tests
-      if: always() && steps.run-unit-tests.outcome == 'failure'
-      env:
-        ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
-      run: |
-        # Extract failed tests from the junit report
-        # Only keep failures unique by classname and name (column 1 and 2 of the yq output)
-        yq < unittests.xml -p xml -o json -r \
-          $'[.testsuites.testsuite[].testcase] | flatten | map(select(.failure) | .+@classname + " " + .+@name + " \'" + .failure.+@message + "\' ${{ env.WORKFLOW_URL }}") | .[]' \
-          | sort -u -k 1,2 \
-          | xargs -L 1 ${{ github.workspace }}/scripts/report-failed-unit-test.sh -s ${{ vars.APPLE_CI_FAILING_TESTS_IOS_FAILED_TESTS_SECTION_ID }}
-
     - name: Report job duration
       if: success() || (always() && steps.run-unit-tests.outcome == 'failure')
       continue-on-error: true
@@ -285,13 +249,6 @@ jobs:
       uses: ./.github/actions/send-pixel
       with:
         pixel-name: m_ci_apple_status_ios_main_unit_tests_${{ steps.run-unit-tests.outcome }}
-
-    - name: Fetch latest commit author and PR reviewers
-      if: failure() && github.ref_name == 'main' && github.run_attempt == 1 && inputs.skip-asana != true
-      id: fetch_commit_author
-      uses: ./.github/actions/fetch-commit-info
-      with:
-        github-token: ${{ github.token }}
 
   release-build:
 
@@ -316,12 +273,13 @@ jobs:
 
     steps:
 
-    - name: Register SSH keys for private repos
-      uses: webfactory/ssh-agent@v0.9.1
-      with:
-        ssh-private-key: |
-          ${{ secrets.SSH_PRIVATE_KEY_FASTLANE_MATCH }}
-          ${{ secrets.SSH_PRIVATE_KEY_DUCKSANS_FONT }}
+    # Skip SSH key registration for fork builds
+    # - name: Register SSH keys for private repos
+    #   uses: webfactory/ssh-agent@v0.9.1
+    #   with:
+    #     ssh-private-key: |
+    #       ${{ secrets.SSH_PRIVATE_KEY_FASTLANE_MATCH }}
+    #       ${{ secrets.SSH_PRIVATE_KEY_DUCKSANS_FONT }}
 
     - name: Check out the code
       if: github.event_name == 'pull_request' || github.event_name == 'push'
@@ -374,23 +332,10 @@ jobs:
       with:
         preferred-versions: "26.4"
 
-    - name: Setup Ruby and dependencies
-      uses: ./.github/actions/setup-ruby
-      with:
-        working-directory: iOS
-        cache-key-prefix: ios-ruby
-
     - name: Build the app
-      env:
-        APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
-        APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-        APPLE_API_KEY_ISSUER: ${{ secrets.APPLE_API_KEY_ISSUER }}
-        MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
       run: |
         echo "Using iOS simulator: ${{ steps.select-simulator.outputs.ios-version }}"
         echo "Destination: ${{ steps.select-simulator.outputs.destination }}"
-
-        bundle exec fastlane sync_signing
 
         set -o pipefail && xcodebuild \
         -scheme "iOS Browser" \
@@ -400,6 +345,8 @@ jobs:
         -skipPackagePluginValidation \
         -skipMacroValidation \
         COMPILATION_CACHE_ENABLE_CACHING=YES \
+        CODE_SIGNING_REQUIRED=NO \
+        CODE_SIGN_IDENTITY="" \
         OTHER_CODE_SIGN_FLAGS=--timestamp=none \
         | xcbeautify
 
@@ -517,42 +464,3 @@ jobs:
             --repo ${{ github.repository }} \
             --body "$body"
 
-  create-asana-task:
-    name: Create Asana Task
-    needs: [unit-tests, shellcheck, release-build]
-
-    if: failure() && github.ref_name == 'main' && github.run_attempt == 1 && inputs.skip-asana != true
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out the code
-        uses: actions/checkout@v6
-      - name: Create Asana Task
-        uses: ./.github/actions/asana-failed-pr-checks
-        with:
-          action: create-task
-          asana-access-token: ${{ secrets.ASANA_ACCESS_TOKEN }}
-          asana-section-id: ${{ vars.APPLE_CI_FAILING_TESTS_IOS_POST_MERGE_SECTION_ID }}
-          commit-author: ${{ needs.unit-tests.outputs.commit_author }}
-          pr-reviewers: ${{ needs.unit-tests.outputs.pr_reviewers }}
-          github-token: ${{ secrets.APPLE_GH_RO_PAT }}
-
-  close-asana-task:
-    name: Close Asana Task
-    needs: [unit-tests, shellcheck, release-build]
-
-    if: success() && github.ref_name == 'main' && github.run_attempt > 1 && inputs.skip-asana != true
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out the code
-        uses: actions/checkout@v6
-      - name: Close Asana Task
-        uses: ./.github/actions/asana-failed-pr-checks
-        with:
-          action: close-task
-          asana-access-token: ${{ secrets.ASANA_ACCESS_TOKEN }}
-          asana-section-id: ${{ vars.APPLE_CI_FAILING_TESTS_IOS_POST_MERGE_SECTION_ID }}
-          github-token: ${{ secrets.APPLE_GH_RO_PAT }}
