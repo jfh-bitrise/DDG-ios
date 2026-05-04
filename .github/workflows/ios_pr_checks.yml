@@ -7,9 +7,6 @@ defaults:
 on:
   push:
     branches: [ main, "release/ios/**" ]
-    paths:
-      - 'SharedPackages/**'
-      - 'iOS/**'
   pull_request:
     # opened, synchronize, reopened are the default triggering events for a pull request
     # We're also adding ready_for_review to run checks when a draft PR becomes ready for review.
@@ -19,8 +16,6 @@ on:
       - '.xcode-version'
       - 'SharedPackages/**'
       - 'iOS/**'
-  schedule:
-    - cron: '10,35,50 4,5,6 * * *'
   workflow_call:
     inputs:
       branch:
