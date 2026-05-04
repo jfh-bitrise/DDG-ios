@@ -75,8 +75,6 @@ on:
         required: true
       SSH_PRIVATE_KEY_FASTLANE_MATCH:
         required: true
-      SSH_PRIVATE_KEY_DUCKSANS_FONT:
-        required: true
 
 jobs:
   export-notarized-app:
@@ -105,7 +103,6 @@ jobs:
       with:
         ssh-private-key: |
           ${{ secrets.SSH_PRIVATE_KEY_FASTLANE_MATCH }}
-          ${{ secrets.SSH_PRIVATE_KEY_DUCKSANS_FONT }}
 
     - name: Check out the code
       uses: actions/checkout@v6
