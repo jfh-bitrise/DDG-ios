@@ -27,8 +27,6 @@ on:
         required: true
       APPLE_API_KEY_ISSUER:
         required: true
-      ASANA_ACCESS_TOKEN:
-        required: true
       MATCH_PASSWORD:
         required: true
       SSH_PRIVATE_KEY_DUCKSANS_FONT:
@@ -230,23 +228,3 @@ jobs:
             tmp/diagnostics/
         retention-days: 7
 
-  create-asana-task:
-    name: Create Asana Task
-    needs: [ios-shared-web-tests, macos-shared-web-tests]
-
-    if: ${{ always() && github.event_name == 'schedule' && (needs.ios-shared-web-tests.result == 'failure' || needs.ios-shared-web-tests.result == 'cancelled' || needs.macos-shared-web-tests.result == 'failure' || needs.macos-shared-web-tests.result == 'cancelled') }}
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out the code
-        uses: actions/checkout@v6
-      - name: Create Asana task when workflow failed
-        uses: duckduckgo/native-github-asana-sync@v1.1
-        with:
-          action: create-asana-task
-          asana-pat: ${{ secrets.ASANA_ACCESS_TOKEN }}
-          asana-project: ${{ vars.APPLE_CI_FAILING_TESTS_PROJECT_ID }}
-          asana-section: ${{ vars.APPLE_CI_FAILING_TESTS_IOS_SHARED_WEB_TESTS_SECTION_ID }}
-          asana-task-name: GH Workflow Failure - Apple Shared Web Tests (iOS or macOS)
-          asana-task-description: The Apple Shared Web Tests workflow has failed (iOS and/or macOS). See https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}

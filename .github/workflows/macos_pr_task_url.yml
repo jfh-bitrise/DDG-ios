@@ -1,12 +1,6 @@
 name: macOS - Asana PR Task URL
 
-on:
-  pull_request:
-    types: [opened, edited, closed, synchronize, review_requested, ready_for_review]
-    paths:
-      - '.github/**'
-      - 'SharedPackages/**'
-      - 'macOS/**'
+on: workflow_dispatch
 
 jobs:
 

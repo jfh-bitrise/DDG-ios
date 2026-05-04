@@ -61,8 +61,6 @@ on:
         required: true
       MATCH_PASSWORD:
         required: true
-      ASANA_ACCESS_TOKEN:
-        required: true
       MM_WEBHOOK_URL:
         required: true
       SSH_PRIVATE_KEY_DUCKSANS_FONT:
@@ -250,20 +248,6 @@ jobs:
       run: |
         echo "dsym-s3-path=${DSYM_S3_PATH}" >> $GITHUB_OUTPUT
         aws s3 cp ${{ env.dsym-path }} ${{ env.DSYM_S3_PATH }}
-
-    - name: Report success
-      env:
-        DSYM_S3_PATH: ${{ steps.upload-dsyms-to-s3.outputs.dsym-s3-path }}
-        TAG: ${{ env.app-version }}
-        WORKFLOW_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
-      if: steps.upload-app-to-appstore.conclusion == 'success' && env.asana-task-url != ''
-      run: |
-        bundle exec fastlane run asana_log_message \
-          task_url:"${{ env.asana-task-url }}" \
-          template_name:"debug-symbols-uploaded" \
-          github_handle:"${{ github.actor }}" \
-          is_scheduled_release:"${{ github.event_name == 'schedule' }}"
 
     - name: Send Mattermost message
       if: success() || failure() # Don't execute when cancelled

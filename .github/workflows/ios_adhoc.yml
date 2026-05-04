@@ -193,21 +193,12 @@ jobs:
 
       - name: Report success
         env:
-          ASANA_TASK_URL: ${{ github.event.inputs.asana-task-url }}
           IPA_URL: ${{ steps.upload-ipa-to-s3.outputs.ipa-url }}
           IPA_S3_PATH: ${{ steps.upload-ipa-to-s3.outputs.ipa-s3-path }}
           DSYM_URL: ${{ steps.upload-dsyms-to-s3.outputs.dsym-url }}
           DSYM_S3_PATH: ${{ steps.upload-dsyms-to-s3.outputs.dsym-s3-path }}
-          WORKFLOW_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
         run: |
           echo "## Build Artifacts" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "🔗 [${IPA_S3_PATH}](${IPA_URL})" >> $GITHUB_STEP_SUMMARY
           echo "🔗 [${DSYM_S3_PATH}](${DSYM_URL})" >> $GITHUB_STEP_SUMMARY
-
-          if [[ -n "$ASANA_TASK_URL" ]]; then
-            bundle exec fastlane run asana_add_comment \
-              task_url:"$ASANA_TASK_URL" \
-              comment:"New build is available at ${IPA_URL}."
-          fi

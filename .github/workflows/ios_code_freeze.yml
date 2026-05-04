@@ -80,7 +80,6 @@ jobs:
       - name: Make release branch
         id: make_release_branch
         env:
-          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           bundle exec fastlane run start_new_release \

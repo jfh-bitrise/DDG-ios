@@ -42,8 +42,6 @@ on:
         required: false
         type: string
     secrets:
-      ASANA_ACCESS_TOKEN:
-        required: true
       AWS_ACCESS_KEY_ID_RELEASE_S3:
         required: true
       AWS_SECRET_ACCESS_KEY_RELEASE_S3:
@@ -174,25 +172,10 @@ jobs:
       - name: Select Xcode
         uses: ./.github/actions/select-xcode-version
 
-      - name: Extract Asana Task ID
-        id: task-id
-        run: bundle exec fastlane run asana_extract_task_id task_url:"${{ env.asana-task-url }}"
-
-      - name: Fetch and validate release notes
+      - name: Create release notes placeholder
+        run: touch release_notes.html
         env:
-          TASK_ID: ${{ steps.task-id.outputs.asana_task_id }}
-          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
-        run: |
-          curl -fLSs "https://app.asana.com/api/1.0/tasks/${TASK_ID}?opt_fields=notes" \
-            -H "Authorization: Bearer ${ASANA_ACCESS_TOKEN}" \
-            | jq -r .data.notes > release_task_content.txt
-          raw_release_notes="$(./scripts/extract_release_notes.sh -r < release_task_content.txt)"
-          if [[ ${#raw_release_notes} == 0 || "$raw_release_notes" == *"<-- Add release notes here -->"* ]]; then
-            echo "::error::Release notes are empty or contain a placeholder. Please add release notes to the Asana task and restart the workflow."
-            exit 1
-          fi
-          ./scripts/extract_release_notes.sh < release_task_content.txt > release_notes.html
-          echo "RELEASE_NOTES_FILE=release_notes.html" >> $GITHUB_ENV
+          RELEASE_NOTES_FILE: release_notes.html
 
       - name: Set up Sparkle tools
         env:
@@ -293,164 +276,6 @@ jobs:
         with:
           version: ${{ steps.verify-tag.outputs.release-version }}
           platform: "macos"
-
-      - name: Create Asana notification task
-        if: github.event.inputs.release-type != null && github.event.inputs.release-type != 'internal'
-        continue-on-error: true
-        uses: ./.github/actions/send-release-notification-task
-        with:
-          platform: macos
-          tag: ${{ env.TAG }}
-          asana-project: ${{ vars.APPLE_DEPLOYMENTS_ASANA_PROJECT_ID }}
-          asana-section: ${{ vars.APPLE_DEPLOYMENTS_SECTION_ID }}
-          asana-access-token: ${{ secrets.ASANA_ACCESS_TOKEN }}
-
-      - name: Update Asana for the release
-        id: update-asana
-        if: ${{ env.RELEASE_TYPE != 'internal' }}
-        continue-on-error: true
-        env:
-          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
-          BRANCH: ${{ github.ref_name }}
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          bundle exec fastlane run update_asana_for_release \
-            platform:macos \
-            release_type:public \
-            github_handle:"${{ github.actor }}" \
-            is_scheduled_release:"${{ github.event_name == 'schedule' }}" \
-            release_task_id:"${{ steps.task-id.outputs.asana_task_id }}" \
-            target_section_id:"${{ vars.MACOS_APP_BOARD_DONE_SECTION_ID }}" \
-            tag:"${{ env.TAG }}"
-
-      - name: Get tasks since last internal release
-        id: get-tasks-since-last-internal-release
-        if: contains(github.event.inputs.release-type, '') || github.event.inputs.release-type == 'internal'
-        env:
-          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          tasks="$(./scripts/get_tasks_in_last_internal_release.sh)"
-          echo "tasks=$tasks" >> $GITHUB_OUTPUT
-
-      - name: Set common environment variables
-        if: always()
-        env:
-          DMG_NAME: ${{ steps.fetch-dmg.outputs.dmg-name }}
-        run: |
-          echo "APPCAST_PATCH_NAME=${{ steps.appcast.outputs.appcast-patch-name }}" >> $GITHUB_ENV
-          echo "DMG_NAME=${DMG_NAME}" >> $GITHUB_ENV
-          echo "DMG_URL=${{ vars.DMG_URL_ROOT }}${DMG_NAME}" >> $GITHUB_ENV
-          echo "RELEASE_BUCKET_NAME=${{ vars.RELEASE_BUCKET_NAME }}" >> $GITHUB_ENV
-          echo "RELEASE_BUCKET_PREFIX=${{ vars.RELEASE_BUCKET_PREFIX }}" >> $GITHUB_ENV
-          echo "RELEASE_TASK_ID=${{ steps.task-id.outputs.asana_task_id }}" >> $GITHUB_ENV
-          echo "TASKS_SINCE_LAST_INTERNAL_RELEASE=${{ steps.get-tasks-since-last-internal-release.outputs.tasks }}" >> $GITHUB_ENV
-          echo "VERSION=${{ steps.verify-tag.outputs.release-version }}" >> $GITHUB_ENV
-          echo "WORKFLOW_URL=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_ENV
-
-      - name: Set up Asana templates
-        if: always()
-        id: asana-templates
-        run: |
-          if [[ ${{ steps.upload.outcome }} == "success" ]]; then
-            if [[ "${RELEASE_TYPE}" == "internal" ]]; then
-              echo "task-template=validate-check-for-updates-internal" >> $GITHUB_OUTPUT
-              echo "comment-template=validate-check-for-updates-internal" >> $GITHUB_OUTPUT
-              if [[ -n "${TASKS_SINCE_LAST_INTERNAL_RELEASE}" ]]; then
-                echo "release-task-comment-template=internal-release-complete-with-tasks" >> $GITHUB_OUTPUT
-              else
-                echo "release-task-comment-template=internal-release-complete" >> $GITHUB_OUTPUT
-              fi
-            else
-              echo "task-template=validate-check-for-updates-public" >> $GITHUB_OUTPUT
-              echo "comment-template=validate-check-for-updates-public" >> $GITHUB_OUTPUT
-              echo "release-task-comment-template=public-release-complete" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "task-template=appcast-failed-${RELEASE_TYPE}" >> $GITHUB_OUTPUT
-            echo "comment-template=appcast-failed-${RELEASE_TYPE}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Create Asana task
-        id: create-task
-        if: always()
-        env:
-          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
-        run: |
-          bundle exec fastlane run asana_create_action_item \
-            task_url:"${{ env.asana-task-url }}" \
-            template_name:"${{ steps.asana-templates.outputs.task-template }}" \
-            github_handle:"${{ github.actor }}" \
-            is_scheduled_release:"${{ github.event_name == 'schedule' }}" \
-            due_date:"$(date +%Y-%m-%d)"
-
-      - name: Create Asana task to handle Asana paperwork
-        id: create-asana-paperwork-task
-        if: ${{ steps.update-asana.outcome == 'failure' }}
-        env:
-          APP_BOARD_ASANA_PROJECT_ID: ${{ vars.MACOS_APP_BOARD_ASANA_PROJECT_ID }}
-          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
-        run: |
-          bundle exec fastlane run asana_create_action_item \
-            task_url:"${{ env.asana-task-url }}" \
-            template_name:"update-asana-for-public-release" \
-            github_handle:"${{ github.actor }}" \
-            is_scheduled_release:"${{ github.event_name == 'schedule' }}" \
-            due_date:"$(date +%Y-%m-%d)"
-
-      - name: Upload patch to the Asana task
-        id: upload-patch
-        if: success()
-        env:
-          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
-        run: |
-          bundle exec fastlane run asana_upload \
-            file_name:"${{ env.SPARKLE_DIR }}/${{ steps.appcast.outputs.appcast-patch-name }}" \
-            task_id:"${{ steps.create-task.outputs.asana_new_task_id }}"
-
-      - name: Upload old appcast file to the Asana task
-        id: upload-old-appcast
-        if: success()
-        env:
-          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
-        run: |
-          bundle exec fastlane run asana_upload \
-            file_name:"${{ env.OLD_APPCAST_NAME }}" \
-            task_id:"${{ steps.create-task.outputs.asana_new_task_id }}"
-
-      - name: Upload release notes to the Asana task
-        id: upload-release-notes
-        if: success()
-        env:
-          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
-        run: |
-          bundle exec fastlane run asana_upload \
-            file_name:"${{ env.RELEASE_NOTES_FILE }}" \
-            task_id:"${{ steps.create-task.outputs.asana_new_task_id }}"
-
-      - name: Report status
-        if: always()
-        env:
-          ANNOUNCEMENT_TASK_ID: ${{ steps.update-asana.outputs.asana_new_task_id }}
-          ASSIGNEE_ID: ${{ steps.create-task.outputs.asana_assignee_id }}
-          TASK_ID: ${{ steps.create-task.outputs.asana_new_task_id }}
-          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
-        run: |
-          bundle exec fastlane run asana_log_message \
-            task_url:"${{ env.asana-task-url }}" \
-            template_name:"${{ steps.asana-templates.outputs.comment-template }}" \
-            github_handle:"${{ github.actor }}" \
-            is_scheduled_release:"${{ github.event_name == 'schedule' }}"
-
-      - name: Add a comment to the release task
-        if: success()
-        env:
-          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
-          WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          bundle exec fastlane run asana_add_comment \
-            task_url:"${{ env.asana-task-url }}" \
-            template_name:"${{ steps.asana-templates.outputs.release-task-comment-template }}"
 
   # This is only run for public and hotfix releases
   create-variants:

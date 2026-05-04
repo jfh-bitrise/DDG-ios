@@ -48,8 +48,6 @@ on:
         required: true
       APPLE_API_KEY_ISSUER:
         required: true
-      ASANA_ACCESS_TOKEN:
-        required: true
       AWS_ACCESS_KEY_ID:
         required: true
       AWS_ACCESS_KEY_ID_RELEASE_S3:

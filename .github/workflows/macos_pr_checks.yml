@@ -27,10 +27,6 @@ on:
         description: "Branch name"
         required: false
         type: string
-      skip-asana:
-        description: "Skip Asana task creation on tests failure"
-        type: boolean
-        default: true
       skip-release-build:
         description: "Skip release build"
         type: boolean
@@ -41,8 +37,6 @@ on:
       APPLE_API_KEY_ID:
         required: true
       APPLE_API_KEY_ISSUER:
-        required: true
-      ASANA_ACCESS_TOKEN:
         required: true
       APPLE_GH_RO_PAT:
         required: true
@@ -168,8 +162,6 @@ jobs:
 
     outputs:
       private-api-check-report: ${{ steps.private-api.outputs.report }}
-      commit_author: ${{ steps.fetch_commit_author.outputs.commit_author }}
-      pr_reviewers: ${{ steps.fetch_commit_author.outputs.pr_reviewers }}
 
     steps:
     - name: Register SSH keys for private repos
@@ -391,20 +383,6 @@ jobs:
         check_retries: ${{ needs.should-run-checks.outputs.strict_mode != 'true' }}
         job_summary: 'false'
 
-    - name: Update Asana with failed unit tests
-      if: always() && (steps.run-unit-tests.outcome == 'failure' || steps.run-integration-tests.outcome == 'failure')
-      env:
-        ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
-      run: |
-        # Extract failed tests from the junit report
-        # Only keep failures unique by classname and name (column 1 and 2 of the yq output)
-        for file in "${{ matrix.flavor }}-unittests.xml" "${{ matrix.flavor }}-integrationtests.xml"; do
-          yq < "$file" -p xml -o json -r \
-            $'[.testsuites.testsuite[].testcase] | flatten | map(select(.failure) | .+@classname + " " + .+@name + " \'" + .failure.+@message + "\' ${{ env.WORKFLOW_URL }}") | .[]' \
-            | sort -u -k 1,2 \
-            | xargs -L 1 ${{ github.workspace }}/scripts/report-failed-unit-test.sh -s ${{ vars.APPLE_CI_FAILING_TESTS_MACOS_FAILED_TESTS_SECTION_ID }}
-        done
-
     - name: Report job duration
       if: success() || (always() && steps.run-integration-tests.outcome == 'failure')
       continue-on-error: true
@@ -470,13 +448,6 @@ jobs:
           ~/Library/Logs/DiagnosticReports/*.ips
         if-no-files-found: ignore
         retention-days: 7
-
-    - name: Fetch latest commit author and PR reviewers
-      if: failure() && github.ref_name == 'main' && github.run_attempt == 1 && inputs.skip-asana != true
-      id: fetch_commit_author
-      uses: ./.github/actions/fetch-commit-info
-      with:
-        github-token: ${{ github.token }}
 
   private-api:
     name: Private API Report
@@ -751,42 +722,3 @@ jobs:
             --repo ${{ github.repository }} \
             --body "$body"
 
-  create-asana-task:
-    name: Create Asana Task
-    needs: [bats, tests, release-build, verify-npm-bundles, private-api]
-
-    if: failure() && github.ref_name == 'main' && github.run_attempt == 1 && inputs.skip-asana != true
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out the code
-        uses: actions/checkout@v6
-      - name: Create Asana Task
-        uses: ./.github/actions/asana-failed-pr-checks
-        with:
-          action: create-task
-          asana-access-token: ${{ secrets.ASANA_ACCESS_TOKEN }}
-          asana-section-id: ${{ vars.APPLE_CI_FAILING_TESTS_MACOS_POST_MERGE_SECTION_ID }}
-          commit-author: ${{ needs.tests.outputs.commit_author }}
-          pr-reviewers: ${{ needs.tests.outputs.pr_reviewers }}
-          github-token: ${{ secrets.APPLE_GH_RO_PAT }}
-
-  close-asana-task:
-    name: Close Asana Task
-    needs: [bats, tests, release-build, verify-npm-bundles, private-api]
-
-    if: success() && github.ref_name == 'main' && github.run_attempt > 1 && inputs.skip-asana != true
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out the code
-        uses: actions/checkout@v6
-      - name: Close Asana Task
-        uses: ./.github/actions/asana-failed-pr-checks
-        with:
-          action: close-task
-          asana-access-token: ${{ secrets.ASANA_ACCESS_TOKEN }}
-          asana-section-id: ${{ vars.APPLE_CI_FAILING_TESTS_MACOS_POST_MERGE_SECTION_ID }}
-          github-token: ${{ secrets.APPLE_GH_RO_PAT }}

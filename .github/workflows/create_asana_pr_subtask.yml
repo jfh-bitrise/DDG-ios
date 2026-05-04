@@ -1,8 +1,6 @@
 name: Shared - Assign GitHub Reviewer to Asana Task
 
-on:
-    pull_request:
-        types: [review_requested]
+on: workflow_dispatch
 
 jobs:
 

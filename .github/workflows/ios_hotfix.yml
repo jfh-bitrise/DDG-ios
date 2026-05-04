@@ -48,7 +48,6 @@ jobs:
           APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_KEY_ISSUER: ${{ secrets.APPLE_API_KEY_ISSUER }}
-          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
           # Elevated permissions token is needed here to use GH git/refs API (used by fastlane)
           GITHUB_TOKEN: ${{ secrets.GHA_ELEVATED_PERMISSIONS_TOKEN }}
         run: |
@@ -63,14 +62,3 @@ jobs:
         with:
           working-directory: iOS
           cache-key-prefix: ios-ruby
-
-      - name: Report success
-        env:
-          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
-          BRANCH: ${{ steps.make_release_branch.outputs.release_branch_name }}
-          RELEASE_TAG: ${{ steps.make_release_branch.outputs.last_release }}
-          WORKFLOW_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          bundle exec fastlane run asana_add_comment \
-            task_url:"${{ steps.make_release_branch.outputs.asana_task_url }}" \
-            template_name:"hotfix-branch-ready"

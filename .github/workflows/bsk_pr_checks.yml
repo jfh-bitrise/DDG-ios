@@ -43,10 +43,6 @@ jobs:
         RUNS_ON: macos-26 # keep this in sync with runs-on above
         WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
 
-      outputs:
-        commit_author: ${{ steps.fetch_commit_author.outputs.commit_author }}
-        pr_reviewers: ${{ steps.fetch_commit_author.outputs.pr_reviewers }}
-
       steps:
 
       - name: Register SSH keys for private repos
@@ -150,18 +146,6 @@ jobs:
           check_retries: ${{ needs.should-run-checks.outputs.strict_mode != 'true' }}
           job_summary: 'false'
 
-      - name: Update Asana with failed unit tests
-        if: always() && steps.run-unit-tests.outcome == 'failure'
-        env:
-          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
-        run: |
-          # Extract failed tests from the junit report
-          # Only keep failures unique by classname and name (column 1 and 2 of the yq output)
-          yq < package-tests.xml -p xml -o json -r \
-            $'[.testsuites.testsuite[].testcase] | flatten | map(select(.failure) | .+@classname + " " + .+@name + " \'" + .failure.+@message + "\' ${{ env.WORKFLOW_URL }}") | .[]' \
-            | sort -u -k 1,2 \
-            | xargs -L 1 ${{ github.workspace }}/scripts/report-failed-unit-test.sh -s ${{ vars.APPLE_CI_FAILING_TESTS_BSK_FAILED_TESTS_SECTION_ID }}
-
       - name: Upload logs
         uses: actions/upload-artifact@v4
         if: always()
@@ -177,13 +161,6 @@ jobs:
           path: SharedPackages/BrowserServicesKit/DerivedData/Logs/Test/*.xcresult
           retention-days: 7
           if-no-files-found: ignore
-
-      - name: Fetch latest commit author and PR reviewers
-        if: failure() && github.ref_name == 'main' && github.run_attempt == 1
-        id: fetch_commit_author
-        uses: ./.github/actions/fetch-commit-info
-        with:
-          github-token: ${{ github.token }}
 
   unit-tests-ios:
 
@@ -322,18 +299,6 @@ jobs:
           check_retries: ${{ needs.should-run-checks.outputs.strict_mode != 'true' }}
           job_summary: 'false'
 
-      - name: Update Asana with failed unit tests
-        if: always() && steps.run-unit-tests-ios.outcome == 'failure'
-        env:
-          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
-        run: |
-          # Extract failed tests from the junit report
-          # Only keep failures unique by classname and name (column 1 and 2 of the yq output)
-          yq < bsk-ios-unittests.xml -p xml -o json -r \
-            $'[.testsuites.testsuite[].testcase] | flatten | map(select(.failure) | .+@classname + " " + .+@name + " \'" + .failure.+@message + "\' ${{ env.WORKFLOW_URL }}") | .[]' \
-            | sort -u -k 1,2 \
-            | xargs -L 1 ${{ github.workspace }}/scripts/report-failed-unit-test.sh -s ${{ vars.APPLE_CI_FAILING_TESTS_BSK_FAILED_TESTS_SECTION_ID }}
-
       - name: Upload logs
         uses: actions/upload-artifact@v4
         if: always()
@@ -366,42 +331,3 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  create-asana-task:
-    name: Create Asana Task
-    needs: [unit-tests, unit-tests-ios]
-
-    if: failure() && github.ref_name == 'main' && github.run_attempt == 1
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out the code
-        uses: actions/checkout@v6
-      - name: Create Asana Task
-        uses: ./.github/actions/asana-failed-pr-checks
-        with:
-          action: create-task
-          asana-access-token: ${{ secrets.ASANA_ACCESS_TOKEN }}
-          asana-section-id: ${{ vars.APPLE_CI_FAILING_TESTS_BSK_POST_MERGE_SECTION_ID }}
-          commit-author: ${{ needs.unit-tests.outputs.commit_author }}
-          pr-reviewers: ${{ needs.unit-tests.outputs.pr_reviewers }}
-          github-token: ${{ secrets.APPLE_GH_RO_PAT }}
-
-  close-asana-task:
-    name: Close Asana Task
-    needs: [unit-tests, unit-tests-ios]
-
-    if: success() && github.ref_name == 'main' && github.run_attempt > 1
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out the code
-        uses: actions/checkout@v6
-      - name: Close Asana Task
-        uses: ./.github/actions/asana-failed-pr-checks
-        with:
-          action: close-task
-          asana-access-token: ${{ secrets.ASANA_ACCESS_TOKEN }}
-          asana-section-id: ${{ vars.APPLE_CI_FAILING_TESTS_BSK_POST_MERGE_SECTION_ID }}
-          github-token: ${{ secrets.APPLE_GH_RO_PAT }}

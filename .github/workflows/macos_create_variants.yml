@@ -4,19 +4,7 @@ defaults:
   run:
     working-directory: macOS
 
-on:
-  workflow_dispatch:
-
-  workflow_call:
-    secrets:
-      ASANA_ACCESS_TOKEN:
-        required: true
-      AWS_ACCESS_KEY_ID_RELEASE_S3:
-        required: true
-      AWS_SECRET_ACCESS_KEY_RELEASE_S3:
-        required: true
-      MM_WEBHOOK_URL:
-        required: true
+on: workflow_dispatch
 
 jobs:
 

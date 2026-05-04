@@ -1,8 +1,6 @@
 name: Create Asana task for Privacy Review
 
-on:
-  pull_request:
-    types: [ labeled ]
+on: workflow_dispatch
 
 jobs:
   call-privacy-review:

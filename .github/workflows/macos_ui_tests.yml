@@ -556,23 +556,3 @@ jobs:
         start-timestamp: ${{ needs.setup-tests.outputs.start-timestamp }}
         pixel-name: ${{ (needs.setup-tests.outputs.all-os-versions == true) && 'm_ci_apple_duration_macos_ui_tests_all' || 'm_ci_apple_duration_macos_ui_tests_latest' }}
 
-  notify-failure:
-    name: Notify on failure
-    if: ${{ always() && github.event_name == 'schedule' && (needs.ui-tests.result == 'failure' || needs.ui-tests.result == 'cancelled') }}
-    needs: [ui-tests]
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Check out the code
-      uses: actions/checkout@v6
-      with:
-        ref: ${{ inputs.branch || github.sha }}
-
-    - name: Create Asana task when workflow failed
-      uses: duckduckgo/native-github-asana-sync@v1.1
-      with:
-        action: create-asana-task
-        asana-pat: ${{ secrets.ASANA_ACCESS_TOKEN }}
-        asana-project: ${{ vars.MACOS_APP_DEVELOPMENT_ASANA_PROJECT_ID }}
-        asana-task-name: GH Workflow Failure - UI Tests
-        asana-task-description: The UI Tests workflow has failed. See https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}

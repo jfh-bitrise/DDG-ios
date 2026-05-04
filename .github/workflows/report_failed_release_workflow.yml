@@ -4,8 +4,8 @@ on:
   workflow_call:
     inputs:
       asana-task-id:
-        description: "Asana release task ID"
-        required: true
+        description: "Asana release task ID (deprecated, kept for compatibility)"
+        required: false
         type: string
       branch:
         description: "Branch"
@@ -23,58 +23,14 @@ on:
         description: "Workflow name"
         required: true
         type: string
-    secrets:
-      ASANA_ACCESS_TOKEN:
-        required: true
-
 jobs:
   report_failure:
     name: Report Failure
 
-    runs-on: macos-26
+    runs-on: ubuntu-latest
 
     steps:
 
-      - name: Set working directory
-        id: set-working-directory
-        run: |
-          case "${{ inputs.platform }}" in
-            ios)
-              echo "working_directory=iOS" >> $GITHUB_OUTPUT
-              ;;
-            macos)
-              echo "working_directory=macOS" >> $GITHUB_OUTPUT
-              ;;
-            *)
-              echo "::error::Invalid platform '${{ inputs.platform }}'."
-              exit 1
-            ;;
-          esac
-
-      - name: Check out the code
-        uses: actions/checkout@v6
-        with:
-          submodules: recursive
-          ref: ${{ inputs.branch }}
-
-      - name: Setup Ruby and dependencies
-        uses: ./.github/actions/setup-ruby
-        with:
-          working-directory: ${{ steps.set-working-directory.outputs.working_directory }}
-          cache-key-prefix: ${{ inputs.platform }}-ruby
-
       - name: Report failed workflow
-        working-directory: ${{ steps.set-working-directory.outputs.working_directory }}
-        env:
-          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          bundle exec fastlane run asana_report_failed_workflow \
-            platform:"${{ inputs.platform }}" \
-            branch:"${{ inputs.branch }}" \
-            commit_sha:"${{ inputs.commit-sha }}" \
-            github_handle:"${{ github.actor }}" \
-            is_scheduled_release:"${{ github.event_name == 'schedule' }}" \
-            task_id:"${{ inputs.asana-task-id }}" \
-            workflow_name:"${{ inputs.workflow-name }}" \
-            workflow_url:"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"
+          echo "::notice::Workflow '${{ inputs.workflow-name }}' failed on branch '${{ inputs.branch }}'. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"

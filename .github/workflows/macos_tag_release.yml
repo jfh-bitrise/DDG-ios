@@ -62,8 +62,6 @@ on:
         type: boolean
         default: false
     secrets:
-      ASANA_ACCESS_TOKEN:
-        required: true
       GHA_ELEVATED_PERMISSIONS_TOKEN:
         required: true
 
@@ -120,7 +118,6 @@ jobs:
     - name: Tag Release and merge to base branch
       id: tag-release
       env:
-        ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GITHUB_ELEVATED_PERMISSIONS_TOKEN: ${{ secrets.GHA_ELEVATED_PERMISSIONS_TOKEN }}
         WORKFLOW_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -134,20 +131,6 @@ jobs:
           is_internal_release_bump:"${{ env.internal-release-bump }}" \
           is_prerelease:"${{ env.prerelease }}" \
           is_scheduled_release:"${{ github.event_name == 'schedule' }}"
-
-    - name: Create Publish DMG Release task on failure
-      id: create-publish-dmg-task-on-failure
-      if: failure() && env.internal-release-bump == 'true'
-      env:
-        ASANA_TASK_URL: ${{ env.asana-task-url }}
-        ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
-      run: |
-        bundle exec fastlane run asana_create_action_item \
-          task_url:"${{ env.asana-task-url }}" \
-          template_name:"run-publish-dmg-release" \
-          github_handle:"${{ github.actor }}" \
-          is_scheduled_release:"${{ github.event_name == 'schedule' }}" \
-          due_date:"$(date +%Y-%m-%d)"
 
     - name: Store stop_workflow flag
       if: steps.tag-release.outputs.stop_workflow == 'true'

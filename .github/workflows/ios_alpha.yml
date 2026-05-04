@@ -212,16 +212,6 @@ jobs:
         name: DuckDuckGo-Alpha-dSYM-${{ needs.build-alpha.outputs.app_version }}
         path: ${{ needs.build-alpha.outputs.dsyms_path }}
 
-    - name: Upload debug symbols to Asana
-      env:
-        ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
-      run: |
-        asana_dsyms_path="${{ github.workspace }}/iOS/DuckDuckGo-Alpha-${{ needs.build-alpha.outputs.app_version }}(${{ needs.build-alpha.outputs.build_version }})-dSYM.zip"
-        mv -f "${{ needs.build-alpha.outputs.dsyms_path }}" "$asana_dsyms_path"
-        curl -s "https://app.asana.com/api/1.0/tasks/1205344386326139/attachments" \
-          -H "Authorization: Bearer ${{ secrets.ASANA_ACCESS_TOKEN }}" \
-          --form "file=@${asana_dsyms_path};type=application/zip"
-
   rerun-check:
     needs: upload
     runs-on: ubuntu-latest
