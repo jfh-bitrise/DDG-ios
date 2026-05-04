@@ -11545,7 +11545,7 @@
 				9FDD72032D895D8C0016246B /* XCRemoteSwiftPackageReference "combine-schedulers" */,
 				BD0C4D872DC54508001F034F /* XCLocalSwiftPackageReference "LocalPackages/DuckUI" */,
 				7B0752DA2F21BFDB00ACA559 /* XCLocalSwiftPackageReference "../SharedPackages/AutomationServer" */,
-				9FADFC482F5FC56400CA16F7 /* XCRemoteSwiftPackageReference "native-apps-ducksans" */,
+				9FADFC482F5FC56400CA16F7 /* XCLocalSwiftPackageReference "LocalPackages/DuckSansFont" */,
 				315E39632F86ABE100D2289D /* XCLocalSwiftPackageReference "../SharedPackages/DebugServer" */,
 			);
 			productRefGroup = 84E341931E2F7EFB00BDBA6F /* Products */;
@@ -17356,6 +17356,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../SharedPackages/AutomationServer;
 		};
+		9FADFC482F5FC56400CA16F7 /* XCLocalSwiftPackageReference "LocalPackages/DuckSansFont" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = LocalPackages/DuckSansFont;
+		};
 		BD0C4D872DC54508001F034F /* XCLocalSwiftPackageReference "LocalPackages/DuckUI" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = LocalPackages/DuckUI;
@@ -17417,14 +17421,6 @@
 			requirement = {
 				kind = exactVersion;
 				version = 4.5.2;
-			};
-		};
-		9FADFC482F5FC56400CA16F7 /* XCRemoteSwiftPackageReference "native-apps-ducksans" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "git@github.com:duckduckgo/native-apps-ducksans.git";
-			requirement = {
-				kind = exactVersion;
-				version = 1.0.0;
 			};
 		};
 		9FDD72032D895D8C0016246B /* XCRemoteSwiftPackageReference "combine-schedulers" */ = {
@@ -17924,7 +17920,7 @@
 		};
 		9FADFC492F5FC56400CA16F7 /* DuckSansFont */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 9FADFC482F5FC56400CA16F7 /* XCRemoteSwiftPackageReference "native-apps-ducksans" */;
+			package = 9FADFC482F5FC56400CA16F7 /* XCLocalSwiftPackageReference "LocalPackages/DuckSansFont" */;
 			productName = DuckSansFont;
 		};
 		9FB19C7D2E94A28700B651B1 /* RemoteMessagingTestsUtils */ = {
